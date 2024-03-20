@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0" />
+		<title>Document</title>
+		<script src="https://cdn.jsdelivr.net/npm/vue@2.7.6"></script>
+		<style>
+			#app {
+				--size: 24px;
+			}
+			.header {
+				height: 40px;
+				width: 100%;
+				background-color: #989898;
+				display: flex;
+				justify-content: space-around;
+				line-height: 40px;
+			}
+			.container {
+				display: flex;
+			}
+			.mine {
+				height: var(--size);
+				width: var(--size);
+				box-sizing: border-box;
+				padding: 2px;
+				font-size: calc(var(--size) * 0.5);
+				text-align: center;
+				background-color: rgb(200, 200, 200);
+				border-width: 3px;
+				border-style: solid;
+				border-color: rgb(213, 213, 213) rgb(132, 132, 132) rgb(132, 132, 132)
+					rgb(213, 213, 213);
+				cursor: pointer;
+				user-select: none;
+			}
+			.mine.clean {
+				background-color: transparent;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="app">
+			<div :style="{width:`calc(var(--size) * ${column})`}">
+				<game-info
+					:flag="flag"
+					:time="time"></game-info>
+				<game-content
+					:row="row"
+					:column="column"
+					:minenum="mineNum"
+					:minefield="minefield"
+					:flag="flag"
+					@update-flag="flagNumChange"
+					@update-minenum="mineNumChange"
+					@restart-game="restartGame"></game-content>
+				难度：
+				<select @change="(e)=>mode=e.target.value">
+					<option
+						v-for="item in optionalMode"
+						:value="item"
+						:selected="mode===item">
+						{{item}}
+					</option>
+				</select>
+			</div>
+		</div>
+
+		<script>
+			Vue.component("game-info", {
+				functional: true, // 在这里声明函数式组件
+				props: ["time", "flag"],
+				render(createElement, context) {
+					return createElement("div", { class: "header" }, [
+						createElement("span", `剩余旗帜: ${context.props.flag}`),
+						createElement("span", `已用时间: ${context.props.time}秒`),
+					])
+				},
+			})
+			Vue.component("game-content", {
+				data() {
+					return {
+						horizontal: Object.freeze([
+							[-1, 0],
+							[0, -1],
+							[0, 1],
+							[1, 0],
+						]),
+						oblique: Object.freeze([
+							[-1, -1],
+							[1, 1],
+							[1, -1],
+							[-1, 1],
+						]),
+					}
+				},
+				props: ["row", "column", "minenum", "minefield", "flag"],
+				template: `
+                <div>
+                    <div
+    				v-for="(rArr,rIndex) in minefield"
+    				:key="rIndex"
+    				class="container">
+    				<span
+    					v-for="(cArr,cIndex) in rArr"
+    					:key="cIndex"
+    					:class="{mine:true,clean:minefield[rIndex][cIndex].cleaned}"
+    					@click="excludeMine(rIndex,cIndex)"
+    					@contextmenu.prevent="markMine(rIndex,cIndex)">
+    					{{minefield[rIndex][cIndex].content}}
+    				</span>
+    			    </div>
+                </div>`,
+				methods: {
+					// 是否超出边界
+					outOfRange(r, c) {
+						return r < 0 || r >= this.row || c < 0 || c >= this.column
+					},
+					// 计算八个格子有多少地雷
+					countAroundMine(r, c) {
+						let sum = 0
+						for (const [dr, dc] of [...this.horizontal, ...this.oblique]) {
+							sum += this.outOfRange(r + dr, c + dc)
+								? 0
+								: this.minefield[r + dr][c + dc].type
+						}
+						return sum
+					},
+					// 是否可以扩散格子
+					canDiffuse(r, c) {
+						return this.countAroundMine(r, c) === 0
+					},
+					// 扩散格子
+					diffuse(r, c) {
+						if (this.outOfRange(r, c) || this.minefield[r][c].cleaned) {
+							return
+						}
+						let num
+						if ((num = this.countAroundMine(r, c)) !== 0) {
+							this.minefield[r][c].cleaned = true
+							this.minefield[r][c].content = num
+							return
+						}
+						this.minefield[r][c].cleaned = true
+						for (const [dr, dc] of this.horizontal) {
+							this.diffuse(r + dr, c + dc)
+						}
+					},
+					// 排雷
+					excludeMine(r, c) {
+						if (this.minefield[r][c].content !== null) return
+						if (this.minefield[r][c].type === 1) {
+							this.minefield[r][c].cleaned = true
+							this.minefield[r][c].content = "💣"
+							requestAnimationFrame(() => {
+								requestAnimationFrame(() => {
+									alert("游戏结束")
+									this.$emit("restart-game")
+								})
+							})
+							return
+						}
+						if (this.canDiffuse(r, c)) {
+							console.time("s")
+							this.diffuse(r, c)
+							console.timeEnd("s")
+							return
+						}
+						this.minefield[r][c].cleaned = true
+						this.minefield[r][c].content = this.countAroundMine(r, c)
+					},
+					// 标记为雷
+					markMine(r, c) {
+						if (this.minefield[r][c].content === "🚩") {
+							if (this.minefield[r][c].type === 1) {
+								this.$emit("update-minenum", this.minenum + 1)
+							}
+							this.minefield[r][c].content = null
+							this.$emit("update-flag", this.flag + 1)
+							return
+						}
+						if (this.minefield[r][c].content !== null) return
+						if (this.flag <= 0) return
+						this.minefield[r][c].content = "🚩"
+						this.$emit("update-flag", this.flag - 1)
+						if (this.minefield[r][c].type === 1) {
+							this.$emit("update-minenum", this.minenum - 1)
+						}
+					},
+				},
+			})
+
+			const genGameModeConfig = (() => {
+				class MineMap {
+					time = 0
+					constructor(row, column, mineNum, flag) {
+						// 行数
+						this.row = row
+						// 列数
+						this.column = column
+						// 地雷数量
+						this.mineNum = mineNum
+						// 旗帜数量
+						this.flag = mineNum
+						this.minefield = Array.from({ length: row }, () =>
+							new Array(column)
+								.fill() //0空白 1为雷，content为排开后显示的内容,cleaned为是否打开了遮罩
+								.map(() => ({ type: 0, content: null, cleaned: false }))
+						)
+					}
+				}
+				return {
+					get easy() {
+						return new MineMap(8, 8, 10)
+					},
+					get middle() {
+						return new MineMap(16, 16, 40)
+					},
+					get hard() {
+						return new MineMap(16, 30, 99)
+					},
+                    get extreme(){
+                        return new MineMap(24, 45, 230)
+                    }
+				}
+			})()
+			const vm = new Vue({
+				el: "#app",
+				data() {
+					return {
+						...genGameModeConfig["hard"],
+						mode: "hard",
+						optionalMode: Object.keys(genGameModeConfig),
+					}
+				},
+				watch: {
+					mineNum(value) {
+						if (value === 0) {
+							alert(`你成功了！耗时${this.time}秒`)
+						}
+					},
+					mode(value) {
+						console.log(value)
+						Object.assign(this, genGameModeConfig[value])
+						this.setupMine()
+					},
+				},
+				mounted() {
+					this.setupMine()
+					this.timekeeping()
+				},
+				methods: {
+					random(min, max) {
+						return Math.floor(Math.random() * (max - min + 1)) + min
+					},
+					// 装置地雷并打乱
+					setupMine() {
+						for (let i = 0; i < this.mineNum; i++) {
+							this.minefield[(i / this.column) >> 0][i % this.column].type = 1
+						}
+						for (let i = 0; i < this.mineNum; i++) {
+							let currentMine =
+								this.minefield[(i / this.column) >> 0][i % this.column]
+							const mineIndex = this.random(i, this.column * this.row - 1)
+							let target =
+								this.minefield[(mineIndex / this.column) >> 0][
+									mineIndex % this.column
+								]
+							let temp = currentMine
+							this.minefield[(i / this.column) >> 0][i % this.column] = target
+							this.minefield[(mineIndex / this.column) >> 0][
+								mineIndex % this.column
+							] = temp
+						}
+					},
+					// 计时
+					timekeeping() {
+						setInterval(() => {
+							this.time++
+						}, 1000)
+					},
+					flagNumChange(num) {
+						this.flag = num
+					},
+					mineNumChange(num) {
+						this.mineNum = num
+					},
+					restartGame() {
+						Object.assign(this, genGameModeConfig[this.mode])
+						this.setupMine()
+					},
+				},
+			})
+		</script>
+	</body>
+</html>
