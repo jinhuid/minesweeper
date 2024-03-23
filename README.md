@@ -1,7 +1,7 @@
 # 一个使用vue3写的扫雷小游戏
 
 ## 小巧 轻快 点击即玩
-- 扫雷 ：[在线地址]([https://bebtme.github.io/Minesweeper/](https://jinhuid.github.io/Minesweeper/))
+- 扫雷 ：[在线地址](https://jinhuid.github.io/Minesweeper/)
 
 ## 获得源码
 > 下载index.html 或点击一键复制
