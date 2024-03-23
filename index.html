@@ -212,10 +212,10 @@
         const Modes = {
           easy: { row: 9, column: 9, mineNum: 10 },
           middle: { row: 16, column: 16, mineNum: 40 },
-          hard: { row: 16, column: 30, mineNum: 350 },
+          hard: { row: 16, column: 30, mineNum: 99 },
           extreme: { row: 24, column: 45, mineNum: 230 },
-          a: { row: 100, column: 100, mineNum: 800 },
-          b: { row: 50, column: 50, mineNum: 230 },
+          nightmare: { row: 50, column: 50, mineNum: 580 },
+          legend: { row: 100, column: 100, mineNum: 2200 },
         }
         return { Modes, gen: (mode) => new MineMap(Modes[mode]) }
       })()
