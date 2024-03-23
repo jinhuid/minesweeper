@@ -39,6 +39,10 @@
       .mine.clean {
         background-color: transparent;
       }
+      input {
+        display: inline;
+        width: 50px;
+      }
       .color1 {
         color: rgb(0, 0, 255);
       }
@@ -88,9 +92,18 @@
         </div>
       </div>
       难度：
-      <select @change="setMode($event)">
+      <select @change="(e)=>setMode(e.target.value)">
         <option v-for="item in optionalMode" :value="item" :selected="mode===item">{{item}}</option>
       </select>
+      <button @click="customMode" ref="btn">自定义</button>
+      <div v-show="showCustom">
+        行：
+        <input type="number" min="0" max="100" v-model="customRow" />
+        列：
+        <input type="number" min="0" max="100" v-model="customColumn" />
+        地雷数量：
+        <input type="number" min="0" max="10000" v-model="customMine" />
+      </div>
     </div>
 
     <script>
@@ -209,7 +222,7 @@
             })()
           }
         }
-        const Modes = {
+        const modeList = {
           easy: { row: 9, column: 9, mineNum: 10 },
           middle: { row: 16, column: 16, mineNum: 40 },
           hard: { row: 16, column: 30, mineNum: 99 },
@@ -217,16 +230,23 @@
           nightmare: { row: 50, column: 50, mineNum: 580 },
           legend: { row: 100, column: 100, mineNum: 2200 },
         }
-        return { Modes, gen: (mode) => new MineMap(Modes[mode]) }
+        return { modeList, gen: (mode) => new MineMap(modeList[mode]) }
       })()
 
       const { createApp, ref, reactive, onBeforeMount, watch, h, toRaw, toRefs, computed } = Vue
 
       const app = createApp({
         setup() {
-          const mode = ref(localStorage.getItem("mode") || "easy")
-          const setMode = (e) => localStorage.setItem("mode", (mode.value = e.target.value))
-          const optionalMode = Object.keys(gameModeConfig.Modes)
+          const storageMode = JSON.parse(localStorage.getItem("modeConfig")) || {}
+          // 合并配置项
+          Object.assign(gameModeConfig.modeList, storageMode)
+
+          const mode = ref(Object.keys(storageMode)[0] || "easy")
+          const setMode = (value) => {
+            mode.value = value
+            localStorage.setItem("modeConfig", JSON.stringify({ [mode.value]: modeList[mode.value] }))
+          }
+
           /**
            * @typedef {Object} modeConfig
            * @property {number} time - 游戏时间
@@ -237,6 +257,9 @@
            * @property {Object[][]} minefield - 地雷场地图
            */
           const modeConfig = reactive(gameModeConfig.gen(mode.value))
+          const modeList = reactive(gameModeConfig.modeList)
+          const optionalMode = computed(() => Object.keys(modeList))
+
           const {
             row,
             column,
@@ -251,8 +274,6 @@
             get: (target, prop) => target.value[prop],
             set: (target, prop, value) => (target.value[prop] = value),
           })
-
-          console.log(minefield)
 
           const onClick = (r, c) => {
             const block = minefield[r][c]
@@ -272,7 +293,6 @@
             if (block.canExpand) {
               const row_index_list = block.expand(r, c, rawMap)
               // 手动触发所有行子组件更新
-              console.log(row_index_list)
               for (let ri of row_index_list) {
                 let temp = minefield[ri][0].content
                 minefield[ri][0].content = "_"
@@ -302,7 +322,7 @@
               mineNum.value--
             }
           }
-          // 打乱地雷
+          // 打乱炸弹
           const setupMine = () => {
             let r = row.value,
               c = column.value
@@ -312,7 +332,6 @@
               const _r = trunc(rand_i / c),
                 _c = rand_i % c
               const targetType = minefield[_r][_c].type
-
               minefield[trunc(i / c)][i % c].type = targetType
               minefield[_r][_c].type = mineType
             }
@@ -320,17 +339,40 @@
 
           onBeforeMount(setupMine)
 
+          const showCustom = ref(false)
+          const btn = ref()
+          const customRow = ref(modeList[mode.value].row)
+          const customColumn = ref(modeList[mode.value].column)
+          const customMine = ref(modeList[mode.value].mineNum)
+
+          // 自定义难度
+          const customMode = () => {
+            if (btn.value.textContent === "确认") {
+              const yes = confirm(
+                `将创建${customRow.value}行,${customColumn.value}列,${customMine.value}个炸弹的难度`,
+              )
+              if (yes) {
+                Object.assign(modeList, {
+                  custom: {
+                    row: +customRow.value,
+                    column: +customColumn.value,
+                    mineNum: +customMine.value,
+                  },
+                })
+                setMode("custom")
+              }
+              showCustom.value = false
+              btn.value.textContent = "自定义"
+            } else {
+              showCustom.value = true
+              btn.value.textContent = "确认"
+            }
+          }
+
           // 重配置
           const reConfigure = () => {
             Object.assign(modeConfig, gameModeConfig.gen(mode.value))
             setupMine()
-          }
-          // 计时
-          let timer
-          const timekeeping = () => {
-            timer = setInterval(() => {
-              time.value++
-            }, 1000)
           }
 
           const waitingForRender = (fn) => {
@@ -340,6 +382,7 @@
               }),
             )
           }
+          // 游戏失败
           const fail = () => {
             waitingForRender(() => {
               clearInterval(timer)
@@ -348,22 +391,43 @@
             })
           }
 
-          // 切换难度
-          watch(mode, reConfigure)
+          // 通过游戏
+          const win = () => {
+            waitingForRender(() => {
+              clearInterval(timer)
+              alert(`You Win! 用时${time.value}s`)
+              reConfigure()
+            })
+          }
 
+          // 计时
+          let timer
+          const timekeeping = () => {
+            timer = setInterval(() => {
+              time.value++
+            }, 1000)
+          }
+
+          // 切换难度
+          watch(mode, () => {
+            customRow.value = modeList[mode.value].row
+            customColumn.value = modeList[mode.value].column
+            customMine.value = modeList[mode.value].mineNum
+            clearInterval(timer)
+            reConfigure()
+          })
+
+          // 首次点击后开始计时
           watch(firstClick, (value) => {
             if (value === false) {
               timekeeping()
             }
           })
 
+          // 炸弹为0 通过游戏
           watch(mineNum, (value) => {
             if (value === 0) {
-              waitingForRender(() => {
-                clearInterval(timer)
-                alert(`You Win! 用时${time.value}s`)
-                reConfigure()
-              })
+              win()
             }
           })
 
@@ -374,6 +438,12 @@
             ...toRefs(modeConfig),
             onClick,
             onRightClick,
+            customMode,
+            showCustom,
+            btn,
+            customRow,
+            customColumn,
+            customMine,
           }
         },
       })
