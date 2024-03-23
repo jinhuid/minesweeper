@@ -1,299 +1,393 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta
-			name="viewport"
-			content="width=device-width, initial-scale=1.0" />
-		<title>Document</title>
-		<script src="https://cdn.jsdelivr.net/npm/vue@2.7.6"></script>
-		<style>
-			#app {
-				--size: 24px;
-			}
-			.header {
-				height: 40px;
-				width: 100%;
-				background-color: #989898;
-				display: flex;
-				justify-content: space-around;
-				line-height: 40px;
-			}
-			.container {
-				display: flex;
-			}
-			.mine {
-				height: var(--size);
-				width: var(--size);
-				box-sizing: border-box;
-				padding: 2px;
-				font-size: calc(var(--size) * 0.5);
-				text-align: center;
-				background-color: rgb(200, 200, 200);
-				border-width: 3px;
-				border-style: solid;
-				border-color: rgb(213, 213, 213) rgb(132, 132, 132) rgb(132, 132, 132)
-					rgb(213, 213, 213);
-				cursor: pointer;
-				user-select: none;
-			}
-			.mine.clean {
-				background-color: transparent;
-			}
-		</style>
-	</head>
-	<body>
-		<div id="app">
-			<div :style="{width:`calc(var(--size) * ${column})`}">
-				<game-info
-					:flag="flag"
-					:time="time"></game-info>
-				<game-content
-					:row="row"
-					:column="column"
-					:minenum="mineNum"
-					:minefield="minefield"
-					:flag="flag"
-					@update-flag="flagNumChange"
-					@update-minenum="mineNumChange"
-					@restart-game="restartGame"></game-content>
-				难度：
-				<select @change="(e)=>mode=e.target.value">
-					<option
-						v-for="item in optionalMode"
-						:value="item"
-						:selected="mode===item">
-						{{item}}
-					</option>
-				</select>
-			</div>
-		</div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+      #app {
+        --size: 24px;
+      }
+      .game-info {
+        height: 40px;
+        width: 100%;
+        background-color: #989898;
+        display: flex;
+        justify-content: space-around;
+        line-height: 40px;
+      }
+      .mine {
+        --border-width: 3px;
+        flex-shrink: 0;
+        height: var(--size);
+        width: var(--size);
+        box-sizing: border-box;
+        line-height: calc((var(--size) - var(--border-width) * 2));
+        font-size: calc((var(--size) - var(--border-width) * 2));
+        text-align: center;
+        background-color: rgb(192, 192, 192);
+        border-width: var(--border-width);
+        border-style: solid;
+        border-color: rgb(244, 244, 244) rgb(128, 128, 128) rgb(128, 128, 128) rgb(244, 244, 244);
+        cursor: pointer;
+        user-select: none;
+      }
+      .mine:hover {
+        background-color: rgb(147, 147, 147);
+      }
+      .mine.clean {
+        background-color: transparent;
+      }
+      .color1 {
+        color: rgb(0, 0, 255);
+      }
+      .color2 {
+        color: rgb(0, 128, 0);
+      }
+      .color3 {
+        color: rgb(255, 0, 0);
+      }
+      .color4 {
+        color: rgb(128, 0, 128);
+      }
+      .color5 {
+        color: rgb(128, 0, 0);
+      }
+      .color6 {
+        color: rgb(165, 42, 42);
+      }
+      .color7 {
+        color: rgb(0, 255, 255);
+      }
+      .color8 {
+        color: rgb(0, 0, 0);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 组件仅仅是为了 不让app vDom全量对比 -->
+    <div id="app">
+      <div style="width: min-content">
+        <game-info class="game-info">
+          <span>剩余旗帜:{{flag}}</span>
+          <span>时间:{{time}}s</span>
+        </game-info>
+        <div style="display: flex" v-for="(rowArr,r) in minefield" :key="r">
+          <mine-list>
+            <b
+              v-for="(mine,c) in rowArr"
+              :class="{ mine: true, clean: mine.cleaned, [mine.color]: true }"
+              :key="c"
+              @mousedown.left="onClick(r,c)"
+              @contextmenu.prevent="onRightClick(r,c)"
+            >
+              {{mine.content}}
+            </b>
+          </mine-list>
+        </div>
+      </div>
+      难度：
+      <select @change="setMode($event)">
+        <option v-for="item in optionalMode" :value="item" :selected="mode===item">{{item}}</option>
+      </select>
+    </div>
 
-		<script>
-			Vue.component("game-info", {
-				functional: true, // 在这里声明函数式组件
-				props: ["time", "flag"],
-				render(createElement, context) {
-					return createElement("div", { class: "header" }, [
-						createElement("span", `剩余旗帜: ${context.props.flag}`),
-						createElement("span", `已用时间: ${context.props.time}秒`),
-					])
-				},
-			})
-			Vue.component("game-content", {
-				data() {
-					return {
-						horizontal: Object.freeze([
-							[-1, 0],
-							[0, -1],
-							[0, 1],
-							[1, 0],
-						]),
-						oblique: Object.freeze([
-							[-1, -1],
-							[1, 1],
-							[1, -1],
-							[-1, 1],
-						]),
-					}
-				},
-				props: ["row", "column", "minenum", "minefield", "flag"],
-				template: `
-                <div>
-                    <div
-    				v-for="(rArr,rIndex) in minefield"
-    				:key="rIndex"
-    				class="container">
-    				<span
-    					v-for="(cArr,cIndex) in rArr"
-    					:key="cIndex"
-    					:class="{mine:true,clean:minefield[rIndex][cIndex].cleaned}"
-    					@click="excludeMine(rIndex,cIndex)"
-    					@contextmenu.prevent="markMine(rIndex,cIndex)">
-    					{{minefield[rIndex][cIndex].content}}
-    				</span>
-    			    </div>
-                </div>`,
-				methods: {
-					// 是否超出边界
-					outOfRange(r, c) {
-						return r < 0 || r >= this.row || c < 0 || c >= this.column
-					},
-					// 计算八个格子有多少地雷
-					countAroundMine(r, c) {
-						let sum = 0
-						for (const [dr, dc] of [...this.horizontal, ...this.oblique]) {
-							sum += this.outOfRange(r + dr, c + dc)
-								? 0
-								: this.minefield[r + dr][c + dc].type
-						}
-						return sum
-					},
-					// 是否可以扩散格子
-					canDiffuse(r, c) {
-						return this.countAroundMine(r, c) === 0
-					},
-					// 扩散格子
-					diffuse(r, c) {
-						if (this.outOfRange(r, c) || this.minefield[r][c].cleaned) {
-							return
-						}
-						let num
-						if ((num = this.countAroundMine(r, c)) !== 0) {
-							this.minefield[r][c].cleaned = true
-							this.minefield[r][c].content = num
-							return
-						}
-						this.minefield[r][c].cleaned = true
-						for (const [dr, dc] of this.horizontal) {
-							this.diffuse(r + dr, c + dc)
-						}
-					},
-					// 排雷
-					excludeMine(r, c) {
-						if (this.minefield[r][c].content !== null) return
-						if (this.minefield[r][c].type === 1) {
-							this.minefield[r][c].cleaned = true
-							this.minefield[r][c].content = "💣"
-							requestAnimationFrame(() => {
-								requestAnimationFrame(() => {
-									alert("游戏结束")
-									this.$emit("restart-game")
-								})
-							})
-							return
-						}
-						if (this.canDiffuse(r, c)) {
-							console.time("s")
-							this.diffuse(r, c)
-							console.timeEnd("s")
-							return
-						}
-						this.minefield[r][c].cleaned = true
-						this.minefield[r][c].content = this.countAroundMine(r, c)
-					},
-					// 标记为雷
-					markMine(r, c) {
-						if (this.minefield[r][c].content === "🚩") {
-							if (this.minefield[r][c].type === 1) {
-								this.$emit("update-minenum", this.minenum + 1)
-							}
-							this.minefield[r][c].content = null
-							this.$emit("update-flag", this.flag + 1)
-							return
-						}
-						if (this.minefield[r][c].content !== null) return
-						if (this.flag <= 0) return
-						this.minefield[r][c].content = "🚩"
-						this.$emit("update-flag", this.flag - 1)
-						if (this.minefield[r][c].type === 1) {
-							this.$emit("update-minenum", this.minenum - 1)
-						}
-					},
-				},
-			})
-
-			const genGameModeConfig = (() => {
-				class MineMap {
-					time = 0
-					constructor(row, column, mineNum, flag) {
-						// 行数
-						this.row = row
-						// 列数
-						this.column = column
-						// 地雷数量
-						this.mineNum = mineNum
-						// 旗帜数量
-						this.flag = mineNum
-						this.minefield = Array.from({ length: row }, () =>
-							new Array(column)
-								.fill() //0空白 1为雷，content为排开后显示的内容,cleaned为是否打开了遮罩
-								.map(() => ({ type: 0, content: null, cleaned: false }))
-						)
-					}
-				}
-				return {
-					get easy() {
-						return new MineMap(8, 8, 10)
-					},
-					get middle() {
-						return new MineMap(16, 16, 40)
-					},
-					get hard() {
-						return new MineMap(16, 30, 99)
-					},
-                    get extreme(){
-                        return new MineMap(24, 45, 230)
+    <script>
+      const FLAG = "🚩"
+      const MINE = "💣"
+      const BLANK = ""
+      const { random, trunc } = Math
+      const gameModeConfig = (() => {
+        class MineMap {
+          time = 0
+          firstClick = true
+          constructor({ row, column, mineNum }) {
+            this.row = row
+            this.column = column
+            this.mineNum = mineNum
+            this.flag = mineNum
+            MineMap.inOutside = (r, c) => {
+              return r < 0 || r >= this.row || c < 0 || c >= this.column
+            }
+            MineMap.directions = [
+              [-1, 0],
+              [0, -1],
+              [0, 1],
+              [1, 0],
+              [-1, -1],
+              [1, 1],
+              [1, -1],
+              [-1, 1],
+            ]
+            this.minefield = (() => {
+              const mineProto = {
+                get isMine() {
+                  return this.type === 1
+                },
+                get withContent() {
+                  return this.content !== BLANK
+                },
+                // 计算八个格子有多少地雷
+                get aroundMinesNum() {
+                  let sum = 0
+                  for (const [dr, dc] of MineMap.directions) {
+                    sum +=
+                      MineMap.inOutside(this._r + dr, this._c + dc) ||
+                      !minefield[this._r + dr][this._c + dc].isMine
+                        ? 0
+                        : 1
+                  }
+                  return sum
+                },
+                // 是否可以扩散格子
+                get canExpand() {
+                  return this.aroundMinesNum === 0
+                },
+                // 扩散格子
+                expand(r, c, minefield, row_index_list = new Set()) {
+                  if (
+                    MineMap.inOutside(r, c) ||
+                    minefield[r][c].cleaned ||
+                    minefield[r][c].content === FLAG
+                  ) {
+                    return row_index_list
+                  }
+                  const block = minefield[r][c]
+                  let num = block.aroundMinesNum
+                  if (num) {
+                    block.cleaned = true
+                    block.content = num
+                    block.color = `color${num}`
+                    row_index_list.add(r)
+                    return row_index_list
+                  } else {
+                    block.cleaned = true
+                    for (const [dr, dc] of MineMap.directions) {
+                      this.expand(r + dr, c + dc, minefield, row_index_list)
                     }
-				}
-			})()
-			const vm = new Vue({
-				el: "#app",
-				data() {
-					return {
-						...genGameModeConfig["hard"],
-						mode: "hard",
-						optionalMode: Object.keys(genGameModeConfig),
-					}
-				},
-				watch: {
-					mineNum(value) {
-						if (value === 0) {
-							alert(`你成功了！耗时${this.time}秒`)
-						}
-					},
-					mode(value) {
-						console.log(value)
-						Object.assign(this, genGameModeConfig[value])
-						this.setupMine()
-					},
-				},
-				mounted() {
-					this.setupMine()
-					this.timekeeping()
-				},
-				methods: {
-					random(min, max) {
-						return Math.floor(Math.random() * (max - min + 1)) + min
-					},
-					// 装置地雷并打乱
-					setupMine() {
-						for (let i = 0; i < this.mineNum; i++) {
-							this.minefield[(i / this.column) >> 0][i % this.column].type = 1
-						}
-						for (let i = 0; i < this.mineNum; i++) {
-							let currentMine =
-								this.minefield[(i / this.column) >> 0][i % this.column]
-							const mineIndex = this.random(i, this.column * this.row - 1)
-							let target =
-								this.minefield[(mineIndex / this.column) >> 0][
-									mineIndex % this.column
-								]
-							let temp = currentMine
-							this.minefield[(i / this.column) >> 0][i % this.column] = target
-							this.minefield[(mineIndex / this.column) >> 0][
-								mineIndex % this.column
-							] = temp
-						}
-					},
-					// 计时
-					timekeeping() {
-						setInterval(() => {
-							this.time++
-						}, 1000)
-					},
-					flagNumChange(num) {
-						this.flag = num
-					},
-					mineNumChange(num) {
-						this.mineNum = num
-					},
-					restartGame() {
-						Object.assign(this, genGameModeConfig[this.mode])
-						this.setupMine()
-					},
-				},
-			})
-		</script>
-	</body>
+                    row_index_list.add(r)
+                    return row_index_list
+                  }
+                },
+                sweepOut() {
+                  if (this.aroundMinesNum === 0 && !minefield[this._r][this._c].isMine) return
+                  let for_count = 0
+                  while (1) {
+                    for (const [dr, dc] of [...MineMap.directions, [0, 0]]) {
+                      if (MineMap.inOutside(this._r + dr, this._c + dc)) continue
+                      const block = minefield[this._r + dr][this._c + dc]
+                      if (block.isMine) {
+                        const _block = minefield[trunc(random() * row)][trunc(random() * column)]
+                        const temp = block.type
+                        block.type = _block.type
+                        _block.type = temp
+                      }
+                    }
+                    for_count++
+                    if (this.aroundMinesNum === 0 && !minefield[this._r][this._c].isMine) return
+                    if (for_count === 99) {
+                      alert("炸弹太多了 请减少一些")
+                      return
+                    }
+                  }
+                },
+              }
+              const minefield = Array.from({ length: row }, (_, r) => {
+                return Array.from({ length: column }, (_, c) =>
+                  Object.assign(Object.create(mineProto), {
+                    _r: r,
+                    _c: c,
+                    type: r * column + c < mineNum ? 1 : 0,
+                    content: BLANK,
+                    cleaned: false,
+                    color: "",
+                  }),
+                )
+              })
+              return minefield
+            })()
+          }
+        }
+        const Modes = {
+          easy: { row: 9, column: 9, mineNum: 10 },
+          middle: { row: 16, column: 16, mineNum: 40 },
+          hard: { row: 16, column: 30, mineNum: 350 },
+          extreme: { row: 24, column: 45, mineNum: 230 },
+          a: { row: 100, column: 100, mineNum: 800 },
+          b: { row: 50, column: 50, mineNum: 230 },
+        }
+        return { Modes, gen: (mode) => new MineMap(Modes[mode]) }
+      })()
+
+      const { createApp, ref, reactive, onBeforeMount, watch, h, toRaw, toRefs, computed } = Vue
+
+      const app = createApp({
+        setup() {
+          const mode = ref(localStorage.getItem("mode") || "easy")
+          const setMode = (e) => localStorage.setItem("mode", (mode.value = e.target.value))
+          const optionalMode = Object.keys(gameModeConfig.Modes)
+          /**
+           * @typedef {Object} modeConfig
+           * @property {number} time - 游戏时间
+           * @property {number} row - 行数
+           * @property {number} column - 列数
+           * @property {number} mineNum - 地雷数量
+           * @property {number} flag - 旗帜数量
+           * @property {Object[][]} minefield - 地雷场地图
+           */
+          const modeConfig = reactive(gameModeConfig.gen(mode.value))
+          const {
+            row,
+            column,
+            mineNum,
+            minefield: map,
+            time,
+            flag,
+            firstClick,
+          } = toRefs(modeConfig)
+          // 可以像reactive一样使用
+          const minefield = new Proxy(map, {
+            get: (target, prop) => target.value[prop],
+            set: (target, prop, value) => (target.value[prop] = value),
+          })
+
+          console.log(minefield)
+
+          const onClick = (r, c) => {
+            const block = minefield[r][c]
+            if (block.withContent) return
+            if (firstClick.value) {
+              block.sweepOut()
+              firstClick.value = false
+            }
+            if (block.isMine) {
+              block.cleaned = true
+              block.content = MINE
+              fail()
+              return
+            }
+            // 当块达到一万以上 reactive的getter可能会造成性能问题 所以使用原数组 后续手动更新
+            const rawMap = toRaw(minefield)
+            if (block.canExpand) {
+              const row_index_list = block.expand(r, c, rawMap)
+              // 手动触发所有行子组件更新
+              console.log(row_index_list)
+              for (let ri of row_index_list) {
+                let temp = minefield[ri][0].content
+                minefield[ri][0].content = "_"
+                minefield[ri][0].content = temp
+              }
+              return
+            }
+            const num = (block.content = block.aroundMinesNum)
+            block.color = `color${num}`
+            block.cleaned = true
+          }
+          const onRightClick = (r, c) => {
+            const block = minefield[r][c]
+            if (block.cleaned) return
+            if (block.content === FLAG) {
+              if (block.isMine) {
+                mineNum.value++
+              }
+              block.content = BLANK
+              flag.value++
+              return
+            }
+            if (flag.value <= 0) return
+            block.content = FLAG
+            flag.value--
+            if (block.isMine) {
+              mineNum.value--
+            }
+          }
+          // 打乱地雷
+          const setupMine = () => {
+            let r = row.value,
+              c = column.value
+            for (let i = 0; i < mineNum.value; i++) {
+              const mineType = minefield[trunc(i / c)][i % c].type
+              const rand_i = trunc(random() * c * r)
+              const _r = trunc(rand_i / c),
+                _c = rand_i % c
+              const targetType = minefield[_r][_c].type
+
+              minefield[trunc(i / c)][i % c].type = targetType
+              minefield[_r][_c].type = mineType
+            }
+          }
+
+          onBeforeMount(setupMine)
+
+          // 重配置
+          const reConfigure = () => {
+            Object.assign(modeConfig, gameModeConfig.gen(mode.value))
+            setupMine()
+          }
+          // 计时
+          let timer
+          const timekeeping = () => {
+            timer = setInterval(() => {
+              time.value++
+            }, 1000)
+          }
+
+          const waitingForRender = (fn) => {
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                fn()
+              }),
+            )
+          }
+          const fail = () => {
+            waitingForRender(() => {
+              clearInterval(timer)
+              alert("游戏结束")
+              reConfigure()
+            })
+          }
+
+          // 切换难度
+          watch(mode, reConfigure)
+
+          watch(firstClick, (value) => {
+            if (value === false) {
+              timekeeping()
+            }
+          })
+
+          watch(mineNum, (value) => {
+            if (value === 0) {
+              waitingForRender(() => {
+                clearInterval(timer)
+                alert(`You Win! 用时${time.value}s`)
+                reConfigure()
+              })
+            }
+          })
+
+          return {
+            optionalMode,
+            mode,
+            setMode,
+            ...toRefs(modeConfig),
+            onClick,
+            onRightClick,
+          }
+        },
+      })
+        .component("mine-list", {
+          setup(props, { slots }) {
+            return () => slots.default()
+          },
+        })
+        .component("game-info", {
+          setup(props, { slots }) {
+            return () => h("div", slots.default())
+          },
+        })
+        .mount("#app")
+    </script>
+  </body>
 </html>
