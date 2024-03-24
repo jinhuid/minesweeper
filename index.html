@@ -8,39 +8,55 @@
     <style>
       #app {
         --size: 24px;
+        width: min-content;
+        margin: 0 auto;
+      }
+      .container {
+        padding: 4px;
+        border-radius: 4px;
+        background-image: linear-gradient(
+          to top left,
+          rgb(111 127 225),
+          rgb(6 29 251 / 62%) 50%,
+          rgb(39 217 255 / 55%)
+        );
       }
       .game-info {
         height: 40px;
         width: 100%;
-        background-color: #989898;
+        background-color: rgb(203, 230, 255);
         display: flex;
         justify-content: space-around;
         line-height: 40px;
       }
       .mine {
-        --border-width: 3px;
-        flex-shrink: 0;
+        --border-width: 1px;
+        margin: 1px;
         height: var(--size);
         width: var(--size);
         box-sizing: border-box;
         line-height: calc((var(--size) - var(--border-width) * 2));
         font-size: calc((var(--size) - var(--border-width) * 2));
         text-align: center;
-        background-color: rgb(192, 192, 192);
-        border-width: var(--border-width);
-        border-style: solid;
-        border-color: rgb(244, 244, 244) rgb(128, 128, 128) rgb(128, 128, 128) rgb(244, 244, 244);
+        border: var(--border-width) solid;
+        mix-blend-mode: multiply;
+        border-radius: 4px;
+        box-shadow: 2px 2px 2px rgb(63, 72, 130);
         cursor: pointer;
         user-select: none;
       }
       .mine:hover {
         background-color: rgb(147, 147, 147);
       }
-      .mine.clean {
-        background-color: transparent;
+      .mine.cleaned {
+        background-color: rgb(203, 230, 255);
+        mix-blend-mode: normal;
       }
-      input {
-        display: inline;
+      .mine.mark {
+        background-color: rgb(255 232 16 / 84%);
+        mix-blend-mode: normal;
+      }
+      input[type="number"] {
         width: 50px;
       }
       .color1 {
@@ -72,16 +88,16 @@
   <body>
     <!-- 组件仅仅是为了 不让app vDom全量对比 -->
     <div id="app">
-      <div style="width: min-content">
-        <game-info class="game-info">
-          <span>剩余旗帜:{{flag}}</span>
-          <span>时间:{{time}}s</span>
-        </game-info>
+      <game-info class="game-info">
+        <span>剩余旗帜:{{flag}}</span>
+        <span>时间:{{time}}s</span>
+      </game-info>
+      <div class="container" @contextmenu.prevent>
         <div style="display: flex" v-for="(rowArr,r) in minefield" :key="r">
           <mine-list>
             <b
               v-for="(mine,c) in rowArr"
-              :class="{ mine: true, clean: mine.cleaned, [mine.color]: true }"
+              :class="{ mine: true, cleaned: mine.cleaned,mark:mine.mark,[mine.color]: true }"
               :key="c"
               @mousedown.left="onClick(r,c)"
               @contextmenu.prevent="onRightClick(r,c)"
@@ -214,6 +230,7 @@
                     type: r * column + c < mineNum ? 1 : 0,
                     content: BLANK,
                     cleaned: false,
+                    mark: false,
                     color: "",
                   }),
                 )
@@ -244,7 +261,10 @@
           const mode = ref(Object.keys(storageMode)[0] || "easy")
           const setMode = (value) => {
             mode.value = value
-            localStorage.setItem("modeConfig", JSON.stringify({ [mode.value]: modeList[mode.value] }))
+            localStorage.setItem(
+              "modeConfig",
+              JSON.stringify({ [mode.value]: modeList[mode.value] }),
+            )
           }
 
           /**
@@ -311,11 +331,13 @@
               if (block.isMine) {
                 mineNum.value++
               }
+              block.mark = false
               block.content = BLANK
               flag.value++
               return
             }
             if (flag.value <= 0) return
+            block.mark = true
             block.content = FLAG
             flag.value--
             if (block.isMine) {
@@ -430,7 +452,6 @@
               win()
             }
           })
-
           return {
             optionalMode,
             mode,
