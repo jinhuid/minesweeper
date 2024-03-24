@@ -7,7 +7,7 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <style>
       #app {
-        --size: 24px;
+        --size: 30px;
         width: min-content;
         margin: 0 auto;
       }
@@ -111,7 +111,12 @@
       <select @change="(e)=>setMode(e.target.value)">
         <option v-for="item in optionalMode" :value="item" :selected="mode===item">{{item}}</option>
       </select>
+      <br />
+      <button @click="reConfigure">重新开始</button>
       <button @click="customMode" ref="btn">自定义</button>
+      <button v-show="showCustom" @click="()=>{showCustom=!showCustom;btn.textContent='自定义'}">
+        取消
+      </button>
       <div v-show="showCustom">
         行：
         <input type="number" min="0" max="100" v-model="customRow" />
@@ -374,6 +379,7 @@
                 `将创建${customRow.value}行,${customColumn.value}列,${customMine.value}个炸弹的难度`,
               )
               if (yes) {
+                // 增加或重写当前custom选项
                 Object.assign(modeList, {
                   custom: {
                     row: +customRow.value,
@@ -381,6 +387,9 @@
                     mineNum: +customMine.value,
                   },
                 })
+                if (mode.value === "custom") {
+                  reConfigure()
+                }
                 setMode("custom")
               }
               showCustom.value = false
@@ -395,6 +404,7 @@
           const reConfigure = () => {
             Object.assign(modeConfig, gameModeConfig.gen(mode.value))
             setupMine()
+            clearInterval(timer)
           }
 
           const waitingForRender = (fn) => {
@@ -407,7 +417,6 @@
           // 游戏失败
           const fail = () => {
             waitingForRender(() => {
-              clearInterval(timer)
               alert("游戏结束")
               reConfigure()
             })
@@ -416,8 +425,7 @@
           // 通过游戏
           const win = () => {
             waitingForRender(() => {
-              clearInterval(timer)
-              alert(`You Win! 用时${time.value}s`)
+              alert(`You win! 用时${time.value}s`)
               reConfigure()
             })
           }
@@ -435,7 +443,6 @@
             customRow.value = modeList[mode.value].row
             customColumn.value = modeList[mode.value].column
             customMine.value = modeList[mode.value].mineNum
-            clearInterval(timer)
             reConfigure()
           })
 
@@ -465,6 +472,7 @@
             customRow,
             customColumn,
             customMine,
+            reConfigure,
           }
         },
       })
