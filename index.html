@@ -7,7 +7,7 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <style>
       #app {
-        --size: 30px;
+        --size: 24px;
         width: min-content;
         margin: 0 auto;
       }
@@ -39,7 +39,6 @@
         font-size: calc((var(--size) - var(--border-width) * 2));
         text-align: center;
         border: var(--border-width) solid;
-        mix-blend-mode: multiply;
         border-radius: 4px;
         box-shadow: 2px 2px 2px rgb(63, 72, 130);
         cursor: pointer;
@@ -52,9 +51,10 @@
         background-color: rgb(203, 230, 255);
         mix-blend-mode: normal;
       }
-      .mine.mark {
+      .mine.marked {
         background-color: rgb(255 232 16 / 84%);
         mix-blend-mode: normal;
+        background-image: none;
       }
       input[type="number"] {
         width: 50px;
@@ -97,7 +97,7 @@
           <mine-list>
             <b
               v-for="(mine,c) in rowArr"
-              :class="{ mine: true, cleaned: mine.cleaned,mark:mine.mark,[mine.color]: true }"
+              :class="{ mine: true, cleaned: mine.cleaned,marked:mine.marked,[mine.color]: true }"
               :key="c"
               @mousedown.left="onClick(r,c)"
               @contextmenu.prevent="onRightClick(r,c)"
@@ -119,11 +119,11 @@
       </button>
       <div v-show="showCustom">
         行：
-        <input type="number" min="0" max="100" v-model="customRow" />
+        <input type="number" min="10" max="100" v-model="customRow" />
         列：
-        <input type="number" min="0" max="100" v-model="customColumn" />
+        <input type="number" min="10" max="100" v-model="customColumn" />
         地雷数量：
-        <input type="number" min="0" max="10000" v-model="customMine" />
+        <input type="number" min="10" max="10000" v-model="customMine" />
       </div>
     </div>
 
@@ -183,26 +183,23 @@
                   if (
                     MineMap.inOutside(r, c) ||
                     minefield[r][c].cleaned ||
-                    minefield[r][c].content === FLAG
+                    minefield[r][c].marked
                   ) {
                     return row_index_list
                   }
                   const block = minefield[r][c]
+                  block.cleaned = true
+                  row_index_list.add(r)
                   let num = block.aroundMinesNum
                   if (num) {
-                    block.cleaned = true
                     block.content = num
                     block.color = `color${num}`
-                    row_index_list.add(r)
-                    return row_index_list
                   } else {
-                    block.cleaned = true
                     for (const [dr, dc] of MineMap.directions) {
                       this.expand(r + dr, c + dc, minefield, row_index_list)
                     }
-                    row_index_list.add(r)
-                    return row_index_list
                   }
+                  return row_index_list
                 },
                 sweepOut() {
                   if (this.aroundMinesNum === 0 && !minefield[this._r][this._c].isMine) return
@@ -235,7 +232,7 @@
                     type: r * column + c < mineNum ? 1 : 0,
                     content: BLANK,
                     cleaned: false,
-                    mark: false,
+                    marked: false,
                     color: "",
                   }),
                 )
@@ -336,13 +333,13 @@
               if (block.isMine) {
                 mineNum.value++
               }
-              block.mark = false
+              block.marked = false
               block.content = BLANK
               flag.value++
               return
             }
             if (flag.value <= 0) return
-            block.mark = true
+            block.marked = true
             block.content = FLAG
             flag.value--
             if (block.isMine) {
